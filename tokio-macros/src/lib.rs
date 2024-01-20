@@ -472,6 +472,15 @@ pub fn test_fail(_args: TokenStream, _item: TokenStream) -> TokenStream {
     .into()
 }
 
+/// Always fails with the error message below.
+/// ```text
+/// The #[tokio::test] macro requires rt or rt-multi-thread.
+/// ```
+#[proc_macro_attribute]
+pub fn background_task(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    entry::background_task(item.into())
+}
+
 /// Implementation detail of the `select!` macro. This macro is **not** intended
 /// to be used as part of the public API and is permitted to change.
 #[proc_macro]

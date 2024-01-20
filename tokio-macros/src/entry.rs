@@ -1,7 +1,8 @@
 use proc_macro2::{Span, TokenStream, TokenTree};
 use quote::{quote, quote_spanned, ToTokens};
 use syn::parse::{Parse, ParseStream, Parser};
-use syn::{braced, Attribute, Ident, Path, Signature, Visibility};
+use syn::spanned::Spanned;
+use syn::{braced, parse_quote_spanned, Attribute, Ident, Path, Signature, Visibility};
 
 // syn::AttributeArgs does not implement syn::Parse
 type AttributeArgs = syn::punctuated::Punctuated<syn::Meta, syn::Token![,]>;
@@ -464,6 +465,60 @@ pub(crate) fn test(args: TokenStream, item: TokenStream, rt_multi_thread: bool) 
         Ok(config) => parse_knobs(input, true, config),
         Err(e) => token_stream_with_error(parse_knobs(input, true, DEFAULT_ERROR_CONFIG), e),
     }
+}
+
+pub(crate) fn background_task(token: TokenStream) -> proc_macro::TokenStream {
+    let mut item: ItemFn = match syn::parse2(token.clone()) {
+        Ok(it) => it,
+        Err(e) => return token_stream_with_error(token, e).into(),
+    };
+
+    // Change `async fn()` to `fn()`
+    item.sig.asyncness = None;
+    let ItemFn {
+        outer_attrs,
+        vis,
+        inner_attrs,
+        stmts,
+        brace_token,
+        mut sig,
+    } = item;
+
+    // Change fn
+    match &sig.output {
+        syn::ReturnType::Default => {}
+        syn::ReturnType::Type(_, ret) => {
+            let ret = quote!(#ret);
+            sig.output = parse_quote_spanned! {ret.span()=>
+                -> tokio::task::JoinHandle<#ret>
+            };
+        }
+    };
+
+    let stmts = &stmts;
+
+    let new_tokens = match &sig.output {
+        syn::ReturnType::Default => {
+            quote! {
+                #(#outer_attrs)* #vis #sig {
+                    tokio::spawn(async {
+                        #(#stmts)*
+                    });
+                }
+            }
+        }
+        syn::ReturnType::Type(_, _) => {
+            quote! {
+                #(#outer_attrs)* #vis #sig {
+                    tokio::spawn(async {
+                        #(#stmts)*
+                    })
+                }
+            }
+        }
+    };
+
+    new_tokens.into()
 }
 
 struct ItemFn {
