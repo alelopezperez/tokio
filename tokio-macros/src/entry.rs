@@ -478,9 +478,9 @@ pub(crate) fn background_task(token: TokenStream) -> proc_macro::TokenStream {
     let ItemFn {
         outer_attrs,
         vis,
-        inner_attrs,
+        inner_attrs: _,
         stmts,
-        brace_token,
+        brace_token: _,
         mut sig,
     } = item;
 
